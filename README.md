@@ -35,6 +35,7 @@
 | 5（可选） | LoRA / MoE / KV Cache / YaRN / RL | [docs/05-advanced.md](docs/05-advanced.md) | 各进阶文件 | — |
 
 各阶段对应的论文与阅读资料汇总在 [docs/reading-list.md](docs/reading-list.md)。
+各阶段期望的输出/结果示例见 [docs/output-examples.md](docs/output-examples.md)。
 
 代码中的 `TODO` 都以 `Assignment NN ·` 开头，例如：
 
