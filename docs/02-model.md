@@ -40,7 +40,7 @@ y = weight * (x / rms(x))
 Transformer 本身不感知 token 顺序，需要把位置信息注入 attention。
 RoPE 的做法是：对 query/key 的相邻维度做旋转，旋转角度随位置线性增加。
 
-先计算基础频率：
+先计算基础频率（Task B）：
 
 ```text
 freqs[i] = 1 / rope_base^(2i / dim),  i = 0, 1, ..., dim/2-1
@@ -52,14 +52,18 @@ freqs[i] = 1 / rope_base^(2i / dim),  i = 0, 1, ..., dim/2-1
 angles[t, i] = t * freqs[i]
 ```
 
-返回的 `freqs_cos` / `freqs_sin` 形状都是 `(end, dim)`：
+Task C 再由 `angles` 生成 `freqs_cos` / `freqs_sin`，形状都是 `(end, dim)`：
 
 ```text
 cos = cos(angles) 拼接成 dim 维
 sin = sin(angles) 拼接成 dim 维
 ```
 
-`rope_scaling`（YaRN）和最终 `cos/sin` 的拼接代码已经给你，不要改动；你只需要补基础频率的计算。读完函数后，分清哪几行是已经给出的工程逻辑。
+注意：`freqs_cos` 并不是 `cos(angles)` 的原样结果，因为 MiniMind 的 `rotate_half`
+实现把张量切成前后两半，所以 RoPE 频率表需要把每个半段各拼接一次，
+最终列数才是 `dim`。
+
+`rope_scaling`（YaRN）对应的插值代码已经给你，不要改动；你只需要补 Task B 的基础频率与 Task C 的 `cos/sin` 输出。读完函数后，分清哪几行是已经给出的工程逻辑。
 
 ## 4. 任务 D：`apply_rotary_pos_emb`
 
