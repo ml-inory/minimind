@@ -77,7 +77,7 @@ python3 -m pytest tests/test_pretrain_smoke.py -v
 本项目沿用 MiniMind 的依赖：
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 CPU 上也能完成全部作业和冒烟测试；真正的预训练 / SFT 建议使用至少 8GB 显存的 GPU。
