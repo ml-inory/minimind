@@ -66,3 +66,9 @@ SFT 的 label 是否只覆盖 assistant 回答。
 - 为什么 `PretrainDataset` 返回的 `labels` 和 `input_ids` 长度相同；
 - `-100` 在交叉熵中的语义；
 - SFT 的 label 应该覆盖哪些 token、不覆盖哪些 token？你的判断依据是什么？
+
+回答完后再对照答案，不要先看：
+
+```bash
+git show solutions:docs/answers/01-dataset.md
+```

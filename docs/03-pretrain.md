@@ -73,3 +73,9 @@ python3 -m pytest tests/test_pretrain_smoke.py -v
 1. 如果把 `loss / accumulation_steps` 去掉，训练结果会有什么问题？
 2. `optimizer.zero_grad` 放在 step 之前和之后有什么区别？
 3. 什么情况下 loss 是 NaN？你设计的训练循环能定位到是哪一步出的问题吗？
+
+回答完后再对照答案：
+
+```bash
+git show solutions:docs/answers/03-pretrain.md
+```

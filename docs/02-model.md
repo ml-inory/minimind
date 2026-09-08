@@ -86,3 +86,9 @@ python3 -m pytest tests/test_model_components.py -v
 1. 每个张量在进入 attention 前后的形状变化是什么？
 2. causal mask 为什么能让第 i 个位置只看前 i 个位置？
 3. 如果去掉 q/k norm、RoPE、residual 中的任意一个，模型训练会发生什么？
+
+回答完后再对照答案：
+
+```bash
+git show solutions:docs/answers/02-model.md
+```
