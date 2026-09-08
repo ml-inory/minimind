@@ -47,10 +47,7 @@ class PretrainDataset(Dataset):
     def __getitem__(self, index):
         sample = self.samples[index]
         # TODO(Assignment 01 · Task A): 实现预训练样本构造
-        # 1) tokenize(sample["text"])，保留 max_length-2 个 token
-        # 2) 首尾加 bos/eos，右侧 padding 到 self.max_length
-        # 3) labels 初始为 input_ids 的副本，padding 位置设为 -100
-        # 4) 返回 (input_ids, labels)，均为 torch.long
+        # 返回 (input_ids, labels)；先想清楚模型在每个位置“该学什么”
         raise NotImplementedError("Assignment 01 · Task A")
 
 
@@ -61,8 +58,10 @@ class SFTDataset(Dataset):
         self.max_length = max_length
         features = Features({'conversations': [{'role': Value('string'), 'content': Value('string'), 'reasoning_content': Value('string'), 'tools': Value('string'), 'tool_calls': Value('string')}]})
         self.samples = load_dataset('json', data_files=jsonl_path, split='train', features=features)
-        self.bos_id = tokenizer(f'{tokenizer.bos_token}assistant\n', add_special_tokens=False).input_ids
-        self.eos_id = tokenizer(f'{tokenizer.eos_token}\n', add_special_tokens=False).input_ids
+        # TODO(Assignment 01 · Task B-0): 预计算回答边界的 token 序列
+        # 打开 chat template 的字符串，自己决定需要哪两个边界
+        self.bos_id = None
+        self.eos_id = None
 
     def __len__(self):
         return len(self.samples)
@@ -85,11 +84,9 @@ class SFTDataset(Dataset):
         )
 
     def generate_labels(self, input_ids):
-        # TODO(Assignment 01 · Task B): 生成 SFT loss mask
-        # 只有 assistant 回答参与 loss：
-        # 扫描 input_ids，遇到 self.bos_id 标记回答起点，
-        # 到 self.eos_id 为止的 token 保留 label，其余为 -100
-        raise NotImplementedError("Assignment 01 · Task B")
+        # TODO(Assignment 01 · Task B-1): 生成 SFT loss mask
+        # 返回等长 label；哪些 token 值得让模型学习、哪些应该忽略？
+        raise NotImplementedError("Assignment 01 · Task B-1")
 
     def __getitem__(self, index):
         sample = self.samples[index]
@@ -113,8 +110,9 @@ class DPODataset(Dataset):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.padding = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
-        self.bos_id = tokenizer(f'{tokenizer.bos_token}assistant\n', add_special_tokens=False).input_ids
-        self.eos_id = tokenizer(f'{tokenizer.eos_token}\n', add_special_tokens=False).input_ids
+        # TODO(Assignment 01 · Task C-0，可选): 预计算 DPO 回答边界
+        self.bos_id = None
+        self.eos_id = None
         self.samples = load_dataset('json', data_files=file_path, split='train')
 
     def __len__(self):
@@ -163,8 +161,8 @@ class DPODataset(Dataset):
 
     def generate_loss_mask(self, input_ids):
         # TODO(Assignment 01 · Task C，可选): 生成 DPO 的 0/1 loss mask
-        # 逻辑与 SFTDataset.generate_labels 相同，只是回答区域记 1，其余记 0
-        raise NotImplementedError("Assignment 01 · Task C")
+        # DPO 的 mask 使用 0/1；请自行决定哪些 token 记为 1
+        raise NotImplementedError("Assignment 01 · Task C-1")
 
 
 class RLAIFDataset(Dataset):
@@ -174,8 +172,6 @@ class RLAIFDataset(Dataset):
         self.max_length = max_length
         self.thinking_ratio = thinking_ratio  # 按概率开启 thinking
         self.samples = load_dataset('json', data_files=jsonl_path, split='train')
-        self.bos_id = tokenizer(f'{tokenizer.bos_token}assistant', add_special_tokens=False).input_ids
-        self.eos_id = tokenizer(f'{tokenizer.eos_token}', add_special_tokens=False).input_ids
 
     def __len__(self):
         return len(self.samples)

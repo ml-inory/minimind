@@ -34,6 +34,8 @@
 | 4 | SFT 与生成：指令微调、loss mask、采样 | [docs/04-sft-generation.md](docs/04-sft-generation.md) | `trainer/train_full_sft.py`、`model/model_minimind.py` | `tests/test_sft_smoke.py` |
 | 5（可选） | LoRA / MoE / KV Cache / YaRN / RL | [docs/05-advanced.md](docs/05-advanced.md) | 各进阶文件 | — |
 
+各阶段对应的论文与阅读资料汇总在 [docs/reading-list.md](docs/reading-list.md)。
+
 代码中的 `TODO` 都以 `Assignment NN ·` 开头，例如：
 
 ```python

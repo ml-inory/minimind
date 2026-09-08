@@ -29,8 +29,7 @@ def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
         labels = labels.to(args.device)
         last_step = step
         # TODO(Assignment 04 · Task A): 实现 SFT 训练 step
-        # 逻辑与 Assignment 03 的预训练 step 相同，不要复制粘贴，独立完成
-        # 注意 SFTDataset 的 labels 已把问题部分设为 -100
+        # 参考 Assignment 03 的推导过程，独立写出本段逻辑
         raise NotImplementedError("Assignment 04 · Task A")
 
         if step % args.log_interval == 0 or step == iters:

@@ -28,11 +28,9 @@ def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
         input_ids = input_ids.to(args.device)
         labels = labels.to(args.device)
         last_step = step
-        # TODO(Assignment 03 · Task B): 实现训练 step
-        # 1) 计算当前 step 的学习率并写入 optimizer.param_groups
-        # 2) 在 autocast_ctx 内 forward，得到 loss = res.loss + res.aux_loss
-        # 3) loss 除以 args.accumulation_steps 后 scaler.scale(loss).backward()
-        # 4) 每 args.accumulation_steps 步: unscale → clip_grad_norm_ → step/update → zero_grad
+        # TODO(Assignment 03 · Task B): 实现一个完整训练 step
+        # 自己列出：前向、损失、反向、梯度累积、裁剪、更新的顺序；
+        # 注意 scaler 与 accumulation_steps 的交互
         raise NotImplementedError("Assignment 03 · Task B")
 
         if step % args.log_interval == 0 or step == iters:

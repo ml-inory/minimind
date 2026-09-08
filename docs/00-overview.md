@@ -1,89 +1,92 @@
-# 第 0 讲：仓库地图与使用方法
+# 第 0 讲：仓库地图与学习方法
 
-## 1. 你要最终做出什么
+## 1. 这门作业的规则
 
-当全部 TODO 完成后，你应该能独立跑通这条主链路：
+这是一门“引导式”的作业，不是代码填空题。
+每篇文档只说明三件事：
 
-```text
-原始文本
-  → PretrainDataset / SFTDataset（tokenize、padding、loss mask）
-  → MiniMindForCausalLM（embedding → Transformer Block × N → lm_head）
-  → train_pretrain.py（预训练：下一个 token 预测）
-  → train_full_sft.py（SFT：只学习 assistant 回答）
-  → generate()（温度采样 / top-k / top-p 解码）
-```
+1. 这个阶段要**理解什么**；
+2. 要完成哪些函数；
+3. 用什么测试验收。
 
-每个环节都已经被“挖空”，文档会先讲原理，再给你任务和自测方式。
+文档不会直接给出实现公式或关键推导。当你不知道怎么做时，应该先回到问题本身，
+查阅 [论文阅读清单](reading-list.md)，再对着 `solutions` 分支中的原始实现验证你的结论。
 
-## 2. 仓库结构
+建议的执行顺序：
 
 ```text
-dataset/lm_dataset.py        # 数据：Pretrain / SFT / DPO 等 Dataset
-model/model_minimind.py      # 模型：Config、RMSNorm、RoPE、Attention、FFN、CausalLM
-model/model_lora.py          # 可选：LoRA 实现
-trainer/trainer_utils.py     # 学习率、随机种子、分布式、checkpoint 等工具
-trainer/train_pretrain.py    # 预训练入口
-trainer/train_full_sft.py    # 全参数 SFT 入口
-trainer/train_lora.py        # 可选：LoRA 训练入口
-eval_llm.py                  # 用生成接口测试模型
-docs/                        # 本作业的学习文档
-tests/                       # 自动测试（你的“判卷器”）
+读问题 → 查资料/读论文 → 写出自己的推导 → 实现 → 跑测试 → 与参考答案对比
 ```
 
-## 3. 主干代码中的“给定部分”和“TODO 部分”
+## 2. 仓库主链路
 
-作业不会让你从空文件开始。保留的内容有两类：
-
-1. **纯工程代码**：命令行参数、目录创建、DDP/compile 包装、checkpoint 保存等。
-2. **数据流骨架**：类的定义、函数签名、以及前后已经写好的调用。
-
-需要你补的是**算法核心**。代码中的 TODO 是唯一的“题面”，例如：
-
-```python
-def norm(self, x):
-    # TODO(Assignment 02 · Task A): 实现 RMSNorm 的归一化公式
-    raise NotImplementedError("Assignment 02 · Task A")
+```text
+dataset/lm_dataset.py
+  → model/model_minimind.py
+  → trainer/train_pretrain.py
+  → trainer/train_full_sft.py
+  → generate()
 ```
 
-完成一个 TODO 后，删掉对应的 `raise NotImplementedError` 即可。
+每篇作业文档都会标注它处于主链路的哪一环。
 
-## 4. Ground truth 怎么用
+## 3. 作业阶段
 
-仓库在改造前已经建立了两个引用：
+| 阶段 | 文档 | 主要文件 | 测试 |
+|------|------|----------|------|
+| 1 | [01-dataset.md](01-dataset.md) | `dataset/lm_dataset.py` | `tests/test_dataset.py` |
+| 2 | [02-model.md](02-model.md) | `model/model_minimind.py` | `tests/test_model_components.py` |
+| 3 | [03-pretrain.md](03-pretrain.md) | `trainer/train_pretrain.py`、`trainer/trainer_utils.py` | `tests/test_trainer_utils.py`、`tests/test_pretrain_smoke.py` |
+| 4 | [04-sft-generation.md](04-sft-generation.md) | `trainer/train_full_sft.py`、`model/model_minimind.py` | `tests/test_sft_smoke.py` |
+| 5（可选） | [05-advanced.md](05-advanced.md) | 各进阶文件 | — |
+
+## 4. 如何定位 TODO
+
+代码中的 TODO 使用统一编号：
 
 ```bash
-git branch solutions               # 完整实现分支
-git tag reference/original-source  # 改造前原始提交
+rg "TODO" dataset/lm_dataset.py model/model_minimind.py trainer/
 ```
 
-建议的自我约束：
+例如 `TODO(Assignment 02 · Task B)` 表示这是第 2 阶段、任务 B。
+完成一个任务后，删除对应的 `raise NotImplementedError`。
 
-1. 每个任务至少自己尝试 20 分钟。
-2. 先用 `pytest` 看清失败点，再回到公式文档里推理。
-3. 实在卡住时，只查看“当前卡住的函数”，例如：
+## 5. 参考答案的使用边界
+
+`solutions` 分支是完整实现，也是这门作业的“评分标准”。请仅在以下场景使用：
+
+1. 已经完成某个任务并让对应测试通过；
+2. 测试失败但你已经尝试推导，确实无法继续；
+3. 完成后做 code review，检查自己的实现与原始实现语义是否一致。
+
+查看单个文件：
 
 ```bash
-git show solutions:model/model_minimind.py | sed -n '70,140p'
+git show solutions:model/model_minimind.py | less
 ```
 
-4. 看懂后**关掉答案，凭理解重写**，而不是粘贴。
+## 6. 验证命令
 
-## 5. 判卷方式
-
-仓库里的测试就是作业的验收条件：
+快速测试（不包含完整训练冒烟）：
 
 ```bash
 python3 -m pytest tests/ -m "not slow" -v
 ```
 
-每个测试文件对应一个阶段：
+完整验证：
 
-| 测试文件 | 覆盖阶段 |
-|----------|----------|
-| `test_dataset.py` | Assignment 01 |
-| `test_model_components.py` | Assignment 02 |
-| `test_trainer_utils.py` | Assignment 03 的 get_lr |
-| `test_pretrain_smoke.py` | Assignment 03 的完整预训练循环（slow） |
-| `test_sft_smoke.py` | Assignment 04 的完整 SFT 循环（slow） |
+```bash
+python3 -m pytest tests/ -v
+```
 
-做完一个阶段，跑对应文件，让红色变成绿色。
+每个阶段的详细验证方式见对应文档。
+
+## 7. 如果卡住了
+
+先问自己三个问题，而不是立刻看答案：
+
+1. 这个函数的输入/输出分别是什么形状和含义？
+2. 背后的数学或算法想解决什么问题？
+3. 如果让我给一个 5 岁的孩子讲，我会怎么说？
+
+如果仍然没有头绪，去 [论文阅读清单](reading-list.md) 找对应资料，通常答案就在论文的某个章节里。

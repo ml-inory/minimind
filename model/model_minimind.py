@@ -55,15 +55,15 @@ class RMSNorm(torch.nn.Module):
 
     def norm(self, x):
         # TODO(Assignment 02 · Task A): 实现 RMSNorm 归一化
-        # 提示: y = x / sqrt(mean(x^2, dim=-1) + eps)，这里不乘 weight
+        # 先阅读 RMSNorm 论文，想清楚：为什么它不需要减均值？
         raise NotImplementedError("Assignment 02 · Task A")
 
     def forward(self, x):
         return (self.weight * self.norm(x.float())).type_as(x)
 
 def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float = 1e6, rope_scaling: dict = None):
-    # TODO(Assignment 02 · Task B): 实现 RoPE 基础频率
-    # freqs 应为长度 dim//2 的一维张量: freqs[i] = 1 / rope_base^(2i/dim)
+    # TODO(Assignment 02 · Task B): 生成 RoPE 基础频率向量
+    # 需要自己推导：维度取多少、指数如何随下标变化
     freqs = None
     attn_factor = 1.0
     if freqs is None:
@@ -80,14 +80,13 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float =
             freqs = freqs * (1 - ramp + ramp / factor)
     t = torch.arange(end, device=freqs.device)
     freqs = torch.outer(t, freqs).float()
-    # TODO(Assignment 02 · Task C): 由 freqs 计算 cos/sin 并返回
-    # 形状要求: (end, dim)；freqs_cos 与 freqs_sin 需要各拼接一份
+    # TODO(Assignment 02 · Task C): 由位置与频率的组合生成 cos/sin
+    # 想清楚输出形状、半区切分与列数 dim 的关系
     raise NotImplementedError("Assignment 02 · Task C")
 
 def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
     # TODO(Assignment 02 · Task D): 实现旋转位置编码
-    # rotate_half(x) = cat([-x[后半], x[前半]], dim=-1)
-    # q_embed = q * cos + rotate_half(q) * sin（cos/sin 需 unsqueeze 后广播）
+    # 先画出“旋转半区”的几何示意，再决定如何广播 cos/sin
     raise NotImplementedError("Assignment 02 · Task D")
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -133,10 +132,8 @@ class Attention(nn.Module):
             output = F.scaled_dot_product_attention(xq, xk, xv, dropout_p=self.dropout if self.training else 0.0, is_causal=self.is_causal)
         else:
             # TODO(Assignment 02 · Task E): 实现经典 attention
-            # 1) scores = (q @ k^T) / sqrt(head_dim)
-            # 2) causal mask：把当前序列上三角设为 -inf
-            # 3) attention_mask 为 0 的位置用 -1e9 屏蔽
-            # 4) softmax(dim=-1) → attn_dropout → @ v
+            # 写出 score 的计算、mask 的位置和 softmax 的对象；
+            # 也可以先用数学式推导，再与测试中的标准实现对照
             raise NotImplementedError("Assignment 02 · Task E")
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
@@ -153,7 +150,7 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         # TODO(Assignment 02 · Task F): 实现 SwiGLU 前馈网络
-        # FFN(x) = down_proj( act(gate_proj(x)) * up_proj(x) )
+        # “门控”体现在哪里？先阅读 GLU Variants 论文再写
         raise NotImplementedError("Assignment 02 · Task F")
 
 class MOEFeedForward(nn.Module):
@@ -195,8 +192,8 @@ class MiniMindBlock(nn.Module):
         self.mlp = FeedForward(config) if not config.use_moe else MOEFeedForward(config)
 
     def forward(self, hidden_states, position_embeddings, past_key_value=None, use_cache=False, attention_mask=None):
-        # TODO(Assignment 02 · Task G): 实现 Pre-Norm + residual 的 Decoder Block
-        # 注意 self_attn 返回 (hidden_states, present_key_value)
+        # TODO(Assignment 02 · Task G): 实现 Decoder Block
+        # 自问：norm、attention/mlp、residual 三者的先后顺序是什么？
         raise NotImplementedError("Assignment 02 · Task G")
 
 class MiniMindModel(nn.Module):
@@ -255,7 +252,7 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         loss = None
         if labels is not None:
             # TODO(Assignment 02 · Task H): 计算下一个 token 的交叉熵
-            # logits 与 labels 错开一位，ignore_index=-100 跳过 padding/问题部分
+            # 先想清楚 logits 与 labels 的“预测目标”如何对齐
             raise NotImplementedError("Assignment 02 · Task H")
         return MoeCausalLMOutputWithPast(loss=loss, aux_loss=aux_loss, logits=logits, past_key_values=past_key_values, hidden_states=hidden_states)
     
@@ -271,10 +268,8 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
             past_len = past_key_values[0][0].shape[1] if past_key_values else 0
             outputs = self.forward(input_ids[:, past_len:], attention_mask, past_key_values, use_cache=use_cache, **kwargs)
             attention_mask = torch.cat([attention_mask, attention_mask.new_ones(attention_mask.shape[0], 1)], -1) if attention_mask is not None else None
-            # TODO(Assignment 04 · Task B): 实现采样阶段
-            # 输入: outputs.logits[:, -1, :]，形状 (B, vocab_size)
-            # 步骤: temperature → repetition penalty → top-k → top-p → softmax 采样或 argmax
-            # 产出: next_token，形状 (B, 1)
+            # TODO(Assignment 04 · Task B): 根据最后一个位置的 logits 选下一个 token
+            # 参数含义可回看 docs/04；每个参数应作用于哪个环节需要自己确定
             raise NotImplementedError("Assignment 04 · Task B")
             if eos_token_id is not None: next_token = torch.where(finished.unsqueeze(-1), next_token.new_full((next_token.shape[0], 1), eos_token_id), next_token)
             input_ids = torch.cat([input_ids, next_token], dim=-1)

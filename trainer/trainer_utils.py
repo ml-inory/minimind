@@ -38,11 +38,8 @@ def Logger(content):
 
 
 def get_lr(current_step, total_steps, lr):
-    # TODO(Assignment 03 · Task A): 实现 cosine 衰减学习率
-    # 参考公式:
-    #   lr_min = 0.1 * lr
-    #   progress = current_step / total_steps
-    #   return lr_min + 0.5 * (lr - lr_min) * (1 + cos(pi * progress))
+    # TODO(Assignment 03 · Task A): 实现学习率调度
+    # 先画出你期望的学习率曲线，再推导代码；测试只校验关键节点
     raise NotImplementedError("Assignment 03 · Task A")
 
 

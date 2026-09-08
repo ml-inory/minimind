@@ -1,99 +1,75 @@
 # Assignment 03：预训练训练循环
 
-网络结构完成后，模型还只是“随机初始化”。预训练的目的是让它学会**根据前文预测下一个 token**。
+## 1. 本阶段目标
 
-## 1. 一个训练 step 的完整流程
+模型结构完成后，它只是随机初始化。预训练的目标是让模型学会“根据前文预测下一个 token”。
+本阶段要完成的是：让数据、模型、优化器真正转起来。
 
-```text
-DataLoader 取出 (input_ids, labels)
-  → 计算 cosine 学习率并写入 optimizer
-  → autocast 下 forward：model(input_ids, labels=labels)
-  → loss = logits_loss + aux_loss（MoE 辅助 loss，dense 时为 0）
-  → loss /= accumulation_steps
-  → loss.backward()
-  → 每 accumulation_steps 次：
-       scaler.unscale_(optimizer)
-       clip_grad_norm_(model.parameters(), grad_clip)
-       scaler.step(optimizer)
-       scaler.update()
-       optimizer.zero_grad(set_to_none=True)
-```
+## 2. 任务
 
-## 2. 任务 A：cosine 学习率 `get_lr`
+### Task A：`get_lr`
 
 文件：`trainer/trainer_utils.py`
 
-原实现使用 cosine 衰减，但不会衰减到 0，而是到一个最小值：
+实现一个随训练进度变化的学习率函数。
 
-```text
-lr_min = 0.1 * lr
-progress = current_step / total_steps
-lr(current) = lr_min + 0.5 * (lr - lr_min) * (1 + cos(pi * progress))
-```
+### Task B：`train_pretrain.py::train_epoch`
 
-验证：
+文件：`trainer/train_pretrain.py`
+
+完成一个训练 step 的核心逻辑：forward、loss、backward、梯度累积、梯度裁剪、参数更新。
+
+## 3. 引导问题
+
+### 关于学习率
+
+1. 训练后期学习率为什么要下降？
+2. “cosine 衰减”的形状是什么？起点和终点分别应该是什么？
+3. 学习率是否需要衰减到 0？如果不是，通常会保留多少？
+
+### 关于一个训练 step
+
+4. 一个 step 里，模型前向需要的输入是什么？返回的 loss 由哪几部分组成？
+5. `autocast` 的作用是什么？loss scaling 解决什么问题？
+6. 梯度累积的数学含义是什么？为什么 loss 要先除以累积步数再 backward？
+7. 什么时候应该真正调用 `optimizer.step()`？什么时候应该清零梯度？
+8. 梯度裁剪裁剪的是什么范数？它保护模型的哪一部分？
+
+### 关于完整流程
+
+9. 如果你在一个 batch 上观察 loss 不下降，应该先检查 forward、loss、还是学习率？
+10. 为什么要用 `model.eval()` 保存 checkpoint，再切回 `model.train()`？
+
+## 4. 参考资料
+
+见 [论文阅读清单](reading-list.md) 的“阶段 3：训练”。
+
+重点关注：
+
+- AdamW 论文：优化器与权重衰减；
+- SGDR 论文：cosine 学习率调度；
+- GPT-3 论文：完整训练配方；
+- Mixed Precision Training：autocast 与 scaler；
+- Karpathy 的训练调试建议。
+
+## 5. 验收
+
+单元测试：
 
 ```bash
 python3 -m pytest tests/test_trainer_utils.py -v
 ```
 
-## 3. 任务 B：`train_pretrain.py::train_epoch`
-
-文件：`trainer/train_pretrain.py`
-
-脚本已经把数据、模型、优化器、混合精度 scaler 都准备好，`train_epoch` 里每一行都标了顺序。
-你需要补：
-
-1. 当前全局 step 的学习率，并写入 `optimizer.param_groups`；
-2. 在 `autocast_ctx` 内调用 `model(input_ids, labels=labels)`；
-3. 把 `res.loss + res.aux_loss` 除以 `args.accumulation_steps`；
-4. `scaler.scale(loss).backward()`；
-5. 每 `accumulation_steps` 步做 unscale、梯度裁剪、`scaler.step/update`、清零梯度。
-
-日志、checkpoint、尾部残差更新已经保留。
-
-为什么要梯度累积？小显存时无法直接放大 batch，就先用小 batch 累积多次梯度再更新一次，等效于更大的 batch。
-为什么要 grad clip？防止 loss spike 时梯度爆炸，把梯度范数限制到 1.0。
-
-## 4. 本地冒烟运行
-
-用很小的模型和几条文本快速验证整个脚本：
-
-```bash
-cd trainer
-python3 train_pretrain.py \
-  --epochs 1 \
-  --batch_size 2 \
-  --max_seq_len 16 \
-  --hidden_size 16 \
-  --num_hidden_layers 2 \
-  --num_workers 0 \
-  --accumulation_steps 1 \
-  --learning_rate 1e-3 \
-  --save_interval 1 \
-  --log_interval 1 \
-  --device cpu \
-  --data_path ../tests/data/pretrain_toy.jsonl \
-  --save_dir /tmp/mm-homework-out \
-  --from_weight none
-```
-
-看到 loss 并成功保存 `pretrain_16.pth` 即通过。
-
-自动版（标记为 slow，会花几十秒）：
+冒烟测试（会真实启动 `train_pretrain.py`，CPU 约几十秒）：
 
 ```bash
 python3 -m pytest tests/test_pretrain_smoke.py -v
 ```
 
-## 5. 真正的预训练
+## 6. 完成自检
 
-下载 MiniMind 数据后（见 [README_original.md](../README_original.md)）：
+不看代码回答：
 
-```bash
-cd trainer
-python3 train_pretrain.py
-```
-
-对于 768 维模型，这是 64M 参数级别，单张 3090 上约 1~2 小时。
-建议先用 `--hidden_size 64 --num_hidden_layers 2` 验证流程，再放大。
+1. 如果把 `loss / accumulation_steps` 去掉，训练结果会有什么问题？
+2. `optimizer.zero_grad` 放在 step 之前和之后有什么区别？
+3. 什么情况下 loss 是 NaN？你设计的训练循环能定位到是哪一步出的问题吗？
