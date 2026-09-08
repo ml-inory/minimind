@@ -59,6 +59,9 @@ class PretrainDataset(Dataset):
         # 输出约定：
         #   input_ids/labels 都是形状 (self.max_length,) 的 torch.long；
         #   labels 中不应学习的 padding 位置设为 -100，其余与 input_ids 相同。
+        # 期望输出示例（max_length=16，文本 "hello minimind"）：
+        #   input_ids: [1, 6170, 2995, 467, 916, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        #   labels   : [1, 6170, 2995, 467, 916, 2, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100]
         # TODO(Assignment 01 · Task A): 实现预训练样本构造
         # 返回 (input_ids, labels)；先想清楚模型在每个位置“该学什么”
         raise NotImplementedError("Assignment 01 · Task A")
@@ -79,6 +82,9 @@ class SFTDataset(Dataset):
         # 后续 generate_labels 会按这两个序列寻找“assistant 回答起点/终点”。
         # 类型: List[int]（长度不限，通常只有几个 token）
         # 可先用 self.tokenizer.apply_chat_template(...) 打印真实字符串，再决定边界。
+        # 参考示例（MiniMind 模板）：
+        #   bos_id ≈ [1, 1388, 570, 811, 234]（对应 "<|im_start|>assistant\n"）
+        #   eos_id ≈ [2, 234]（对应 "<|im_end|>\n"）
         self.bos_id: Optional[List[int]] = None
         self.eos_id: Optional[List[int]] = None
 
@@ -106,6 +112,9 @@ class SFTDataset(Dataset):
     def generate_labels(self, input_ids: List[int]) -> List[int]:
         # input_ids: 长度 self.max_length 的 token id 列表（已含 padding）
         # 返回: 等长 label 列表；需要模型学习的位置保留原 token id，其余为 -100。
+        # 期望效果：
+        #   system/user/角色标记/padding -> -100
+        #   assistant 的回答内容与结束符  -> 保留原 token id
         # TODO(Assignment 01 · Task B-1): 生成 SFT loss mask
         # 返回等长 label；哪些 token 值得让模型学习、哪些应该忽略？
         raise NotImplementedError("Assignment 01 · Task B-1")
@@ -134,6 +143,7 @@ class DPODataset(Dataset):
         self.padding: int = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
         # TODO(Assignment 01 · Task C-0，可选): 预计算 DPO 回答边界
         # 类型与 SFT 的 bos_id/eos_id 相同: List[int]
+        # 参考示例与 SFTDataset 的 Task B-0 一致
         self.bos_id: Optional[List[int]] = None
         self.eos_id: Optional[List[int]] = None
         # self.samples[index] -> Dict[str, Any]，包含 "chosen"/"rejected"
@@ -186,6 +196,9 @@ class DPODataset(Dataset):
     def generate_loss_mask(self, input_ids: List[int]) -> List[int]:
         # input_ids: 长度 self.max_length 的 token id 列表
         # 返回: 等长 0/1 mask；1 = 参与 DPO loss，0 = 忽略
+        # 期望效果：
+        #   assistant 回答区域 -> 1
+        #   其余（prompt/padding/角色标记） -> 0
         # TODO(Assignment 01 · Task C，可选): 生成 DPO 的 0/1 loss mask
         # DPO 的 mask 使用 0/1；请自行决定哪些 token 记为 1
         raise NotImplementedError("Assignment 01 · Task C-1")

@@ -42,6 +42,10 @@ def get_lr(current_step: int, total_steps: int, lr: float) -> float:
     # total_steps: epoch 数 × 每 epoch 步数
     # lr: 最大学习率（训练脚本 --learning_rate）
     # 返回: 该步应使用的学习率，范围通常落在 [min_lr, lr]
+    # 期望输出示例: lr=1e-3, total_steps=100
+    #   get_lr(0, 100, 1e-3)   ≈ 1.000e-3
+    #   get_lr(50, 100, 1e-3)  ≈ 5.500e-4
+    #   get_lr(100, 100, 1e-3) ≈ 1.000e-4
     # TODO(Assignment 03 · Task A): 实现学习率调度
     # 先画出你期望的学习率曲线，再推导代码；测试只校验关键节点
     raise NotImplementedError("Assignment 03 · Task A")

@@ -37,6 +37,9 @@ def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
 
     你的实现需要产生变量 res 与 loss：
       后面日志与清理代码会使用 res.aux_loss、loss.item()、del res/loss。
+
+    期望行为：完成 TODO 后日志会输出形如
+      Epoch:[1/1](1/1), loss: 8.75, logits_loss: 8.75, aux_loss: 0.0000, lr: 0.00010
     """
     start_time = time.time()
     last_step = start_step

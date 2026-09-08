@@ -57,6 +57,8 @@ class RMSNorm(torch.nn.Module):
     def norm(self, x: torch.Tensor) -> torch.Tensor:
         # x: (..., dim)，通常是 (batch, seq_len, dim)
         # 返回与 x 同形状的归一化结果（本方法不乘 weight）
+        # 期望示例: x=[[1.,2.,3.,4.]], eps=1e-6
+        #   norm(x) ≈ [[0.365, 0.730, 1.095, 1.461]]
         # TODO(Assignment 02 · Task A): 实现 RMSNorm 归一化
         # 先阅读 RMSNorm 论文，想清楚：为什么它不需要减均值？
         raise NotImplementedError("Assignment 02 · Task A")
@@ -68,6 +70,7 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float =
     # 返回: (freqs_cos, freqs_sin)，两者形状都是 (end, dim)
     # dim: head_dim；rope_scaling: 只有开启 YaRN 外推时才不为 None
     # 下方代码会把一维 freqs 与位置 t 做外积，得到 (end, dim/2) 的角度矩阵。
+    # 期望输出: freqs 是一维张量，形状 (dim // 2,)
     # TODO(Assignment 02 · Task B): 生成 RoPE 基础频率向量
     # 需要自己推导：维度取多少、指数如何随下标变化
     freqs = None
@@ -88,12 +91,16 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float =
     freqs = torch.outer(t, freqs).float()
     # TODO(Assignment 02 · Task C): 由位置与频率的组合生成 cos/sin
     # 想清楚输出形状、半区切分与列数 dim 的关系
+    # 期望输出示例: dim=4, end=3
+    #   freqs_cos/freqs_sin 形状均为 (3, 4)
+    #   第 0 行（位置 0）通常是全 1 / 全 0
     raise NotImplementedError("Assignment 02 · Task C")
 
 def apply_rotary_pos_emb(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, unsqueeze_dim: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
     # q/k: (batch, seq_len, num_heads, head_dim)
     # cos/sin: (seq_len, head_dim)（由位置编码表按当前序列切出）
     # 返回与 q/k 同形状的旋转后张量
+    # 期望示例: q 形状 (2, 5, 4, 4) -> 输出 (2, 5, 4, 4)
     # TODO(Assignment 02 · Task D): 实现旋转位置编码
     # 先画出“旋转半区”的几何示意，再决定如何广播 cos/sin
     raise NotImplementedError("Assignment 02 · Task D")
@@ -163,6 +170,7 @@ class Attention(nn.Module):
             # 写出 score 的计算、mask 的位置和 softmax 的对象；
             # 也可以先用数学式推导，再与测试中的标准实现对照
             # 完成后把结果赋给 output，形状需与 flash 分支一致
+            # 期望示例: x 形状 (2, 5, 16) -> output (2, 5, 16)
             raise NotImplementedError("Assignment 02 · Task E")
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
@@ -181,6 +189,7 @@ class FeedForward(nn.Module):
         # x: (batch, seq_len, hidden_size)
         # gate_proj/up_proj: hidden_size -> intermediate_size
         # down_proj: intermediate_size -> hidden_size
+        # 期望示例: 输入 (2, 5, 16) -> 输出 (2, 5, 16)
         # TODO(Assignment 02 · Task F): 实现 SwiGLU 前馈网络
         # “门控”体现在哪里？先阅读 GLU Variants 论文再写
         raise NotImplementedError("Assignment 02 · Task F")
@@ -235,6 +244,7 @@ class MiniMindBlock(nn.Module):
         # self.self_attn(...) 返回 (hidden_states, present_key_value)
         # self.mlp(...) 返回 (B, S, hidden_size)
         # 返回: (hidden_states, present_key_value)
+        # 期望示例: 输入 (2, 5, 16) -> 输出 (2, 5, 16)
         # TODO(Assignment 02 · Task G): 实现 Decoder Block
         # 自问：norm、attention/mlp、residual 三者的先后顺序是什么？
         raise NotImplementedError("Assignment 02 · Task G")
@@ -308,6 +318,9 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         if labels is not None:
             # TODO(Assignment 02 · Task H): 计算下一个 token 的交叉熵
             # 先想清楚 logits 与 labels 的“预测目标”如何对齐
+            # 期望示例: input_ids (2, 13), vocab=64
+            #   logits: (2, 13, 64)
+            #   loss: 一个 0 维 float 张量，初始值约 4.0~4.2
             raise NotImplementedError("Assignment 02 · Task H")
         return MoeCausalLMOutputWithPast(loss=loss, aux_loss=aux_loss, logits=logits, past_key_values=past_key_values, hidden_states=hidden_states)
     
@@ -328,6 +341,7 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
             #   input_ids: (B, past_len + 已生成数) 的完整 token 历史
             # 你需要生成:
             #   next_token: (B, 1) 的 torch.long
+            # 期望示例: B=2 -> next_token 形状 (2, 1)
             # TODO(Assignment 04 · Task B): 根据最后一个位置的 logits 选下一个 token
             # 参数含义可回看 docs/04；每个参数应作用于哪个环节需要自己确定
             raise NotImplementedError("Assignment 04 · Task B")
