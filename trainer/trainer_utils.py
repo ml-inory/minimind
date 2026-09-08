@@ -37,7 +37,11 @@ def Logger(content):
         print(content)
 
 
-def get_lr(current_step, total_steps, lr):
+def get_lr(current_step: int, total_steps: int, lr: float) -> float:
+    # current_step: 从 1 开始的全局步数（epoch 内会累加偏移）
+    # total_steps: epoch 数 × 每 epoch 步数
+    # lr: 最大学习率（训练脚本 --learning_rate）
+    # 返回: 该步应使用的学习率，范围通常落在 [min_lr, lr]
     # TODO(Assignment 03 · Task A): 实现学习率调度
     # 先画出你期望的学习率曲线，再推导代码；测试只校验关键节点
     raise NotImplementedError("Assignment 03 · Task A")

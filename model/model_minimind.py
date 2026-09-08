@@ -1,5 +1,6 @@
 import math, torch, torch.nn.functional as F
 from torch import nn
+from typing import Optional, Tuple
 from transformers.activations import ACT2FN
 from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
@@ -53,15 +54,20 @@ class RMSNorm(torch.nn.Module):
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
 
-    def norm(self, x):
+    def norm(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (..., dim)，通常是 (batch, seq_len, dim)
+        # 返回与 x 同形状的归一化结果（本方法不乘 weight）
         # TODO(Assignment 02 · Task A): 实现 RMSNorm 归一化
         # 先阅读 RMSNorm 论文，想清楚：为什么它不需要减均值？
         raise NotImplementedError("Assignment 02 · Task A")
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return (self.weight * self.norm(x.float())).type_as(x)
 
-def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float = 1e6, rope_scaling: dict = None):
+def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float = 1e6, rope_scaling: Optional[dict] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    # 返回: (freqs_cos, freqs_sin)，两者形状都是 (end, dim)
+    # dim: head_dim；rope_scaling: 只有开启 YaRN 外推时才不为 None
+    # 下方代码会把一维 freqs 与位置 t 做外积，得到 (end, dim/2) 的角度矩阵。
     # TODO(Assignment 02 · Task B): 生成 RoPE 基础频率向量
     # 需要自己推导：维度取多少、指数如何随下标变化
     freqs = None
@@ -84,12 +90,16 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float =
     # 想清楚输出形状、半区切分与列数 dim 的关系
     raise NotImplementedError("Assignment 02 · Task C")
 
-def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
+def apply_rotary_pos_emb(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, unsqueeze_dim: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
+    # q/k: (batch, seq_len, num_heads, head_dim)
+    # cos/sin: (seq_len, head_dim)（由位置编码表按当前序列切出）
+    # 返回与 q/k 同形状的旋转后张量
     # TODO(Assignment 02 · Task D): 实现旋转位置编码
     # 先画出“旋转半区”的几何示意，再决定如何广播 cos/sin
     raise NotImplementedError("Assignment 02 · Task D")
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
+    # x: (batch, seq_len, num_key_value_heads, head_dim)
     bs, slen, num_key_value_heads, head_dim = x.shape
     if n_rep == 1: return x
     return (x[:, :, :, None, :].expand(bs, slen, num_key_value_heads, n_rep, head_dim).reshape(bs, slen, num_key_value_heads * n_rep, head_dim))
@@ -114,7 +124,25 @@ class Attention(nn.Module):
         self.dropout = config.dropout
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention') and config.flash_attn
 
-    def forward(self, x, position_embeddings, past_key_value=None, use_cache=False, attention_mask=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        position_embeddings: Tuple[torch.Tensor, torch.Tensor],
+        past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        use_cache: bool = False,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        # x: (batch, seq_len, hidden_size)
+        # position_embeddings: (cos, sin)，每个形状 (seq_len, head_dim)
+        # past_key_value: 若存在，为 (past_keys, past_values)，均含历史 seq 维
+        # 进入 attention 前各变量形状：
+        #   xq: (B, S, n_local_heads, head_dim)
+        #   xk/xv: (B, S, n_local_kv_heads, head_dim)
+        # 经过 transpose/repeat_kv 后：
+        #   xq/xk/xv: (B, n_local_heads, S, head_dim)
+        # 返回: (output, past_kv)
+        #   output: (B, S, hidden_size)
+        #   past_kv: (keys, values) 或 None
         bsz, seq_len, _ = x.shape
         xq, xk, xv = self.q_proj(x), self.k_proj(x), self.v_proj(x)
         xq = xq.view(bsz, seq_len, self.n_local_heads, self.head_dim)
@@ -148,7 +176,10 @@ class FeedForward(nn.Module):
         self.up_proj = nn.Linear(config.hidden_size, intermediate_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (batch, seq_len, hidden_size)
+        # gate_proj/up_proj: hidden_size -> intermediate_size
+        # down_proj: intermediate_size -> hidden_size
         # TODO(Assignment 02 · Task F): 实现 SwiGLU 前馈网络
         # “门控”体现在哪里？先阅读 GLU Variants 论文再写
         raise NotImplementedError("Assignment 02 · Task F")
@@ -191,7 +222,18 @@ class MiniMindBlock(nn.Module):
         self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.mlp = FeedForward(config) if not config.use_moe else MOEFeedForward(config)
 
-    def forward(self, hidden_states, position_embeddings, past_key_value=None, use_cache=False, attention_mask=None):
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        position_embeddings: Tuple[torch.Tensor, torch.Tensor],
+        past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        use_cache: bool = False,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        # hidden_states: (B, S, hidden_size)
+        # self.self_attn(...) 返回 (hidden_states, present_key_value)
+        # self.mlp(...) 返回 (B, S, hidden_size)
+        # 返回: (hidden_states, present_key_value)
         # TODO(Assignment 02 · Task G): 实现 Decoder Block
         # 自问：norm、attention/mlp、residual 三者的先后顺序是什么？
         raise NotImplementedError("Assignment 02 · Task G")
@@ -245,7 +287,19 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         if self.config.tie_word_embeddings: self.model.embed_tokens.weight = self.lm_head.weight
         self.post_init()
 
-    def forward(self, input_ids, attention_mask=None, past_key_values=None, use_cache=False, logits_to_keep=0, labels=None, **kwargs):
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        past_key_values=None,
+        use_cache: bool = False,
+        logits_to_keep: int = 0,
+        labels: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        # input_ids: (B, S) 的 token id
+        # labels: (B, S) 或 None；有 labels 时需要计算标量 loss
+        # logits: (B, S, vocab_size)
         hidden_states, past_key_values, aux_loss = self.model(input_ids, attention_mask, past_key_values, use_cache, **kwargs)
         slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
@@ -268,6 +322,11 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
             past_len = past_key_values[0][0].shape[1] if past_key_values else 0
             outputs = self.forward(input_ids[:, past_len:], attention_mask, past_key_values, use_cache=use_cache, **kwargs)
             attention_mask = torch.cat([attention_mask, attention_mask.new_ones(attention_mask.shape[0], 1)], -1) if attention_mask is not None else None
+            # 本步可用:
+            #   logits: outputs.logits[:, -1, :]，形状 (B, vocab_size)
+            #   input_ids: (B, past_len + 已生成数) 的完整 token 历史
+            # 你需要生成:
+            #   next_token: (B, 1) 的 torch.long
             # TODO(Assignment 04 · Task B): 根据最后一个位置的 logits 选下一个 token
             # 参数含义可回看 docs/04；每个参数应作用于哪个环节需要自己确定
             raise NotImplementedError("Assignment 04 · Task B")

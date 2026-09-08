@@ -22,12 +22,30 @@ warnings.filterwarnings('ignore')
 
 
 def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
+    """训练一个 epoch。
+
+    循环内每个 step 会拿到：
+      input_ids / labels: (batch_size, seq_len) 的 torch.long，已在 args.device 上
+
+    可直接使用的全局对象：
+      args: argparse 结果（epochs/batch_size/learning_rate/accumulation_steps/grad_clip/...）
+      model: MiniMindForCausalLM（可能被 DDP/torch.compile 包装）
+      optimizer: AdamW
+      scaler: torch.cuda.amp.GradScaler
+      autocast_ctx: nullcontext() 或 torch.cuda.amp.autocast(...)
+      get_lr(current_step, total_steps, lr): Assignment 03 已实现的学习率函数
+
+    你的实现需要产生变量 res 与 loss：
+      后面日志与清理代码会使用 res.aux_loss、loss.item()、del res/loss。
+    """
     start_time = time.time()
     last_step = start_step
     for step, (input_ids, labels) in enumerate(loader, start=start_step + 1):
         input_ids = input_ids.to(args.device)
         labels = labels.to(args.device)
         last_step = step
+        # 当前全局步数通常用 epoch * iters + step 表示；
+        # 每 args.accumulation_steps 个 micro-batch 才真正更新一次参数。
         # TODO(Assignment 03 · Task B): 实现一个完整训练 step
         # 自己列出：前向、损失、反向、梯度累积、裁剪、更新的顺序；
         # 注意 scaler 与 accumulation_steps 的交互

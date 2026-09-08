@@ -22,12 +22,29 @@ warnings.filterwarnings('ignore')
 
 
 def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
+    """训练一个 epoch。
+
+    循环内每个 step 会拿到：
+      input_ids / labels: (batch_size, seq_len) 的 torch.long，已在 args.device 上
+
+    可直接使用的全局对象：
+      args: argparse 结果（learning_rate/accumulation_steps/grad_clip/...）
+      model: MiniMindForCausalLM（可能被 DDP/torch.compile 包装）
+      optimizer: AdamW
+      scaler: torch.cuda.amp.GradScaler
+      autocast_ctx: nullcontext() 或 torch.cuda.amp.autocast(...)
+      get_lr(current_step, total_steps, lr): Assignment 03 已实现的学习率函数
+
+    你的实现需要产生变量 res 与 loss：
+      后面日志与清理代码会使用 res.aux_loss、loss.item()、del res/loss。
+    """
     start_time = time.time()
     last_step = start_step
     for step, (input_ids, labels) in enumerate(loader, start=start_step + 1):
         input_ids = input_ids.to(args.device)
         labels = labels.to(args.device)
         last_step = step
+        # SFT 的 labels 已由 SFTDataset 生成，只有需要学习的 token 保留 label。
         # TODO(Assignment 04 · Task A): 实现 SFT 训练 step
         # 参考 Assignment 03 的推导过程，独立写出本段逻辑
         raise NotImplementedError("Assignment 04 · Task A")
