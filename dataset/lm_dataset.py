@@ -40,12 +40,12 @@ class PretrainDataset(Dataset):
 
     def __init__(self, data_path: str, tokenizer: Any, max_length: int = 512):
         super().__init__()
-        self.tokenizer = tokenizer
-        self.max_length = max_length
+        self.tokenizer: Any = tokenizer
+        self.max_length: int = max_length
         # self.samples: HF datasets.Dataset（Arrow 表，支持 len/索引/迭代）
         # self.samples[index] -> Dict[str, Any]
         # pretrain 每行形如 {"text": "..."}，取文本用 sample["text"]
-        self.samples = load_dataset('json', data_files=data_path, split='train')
+        self.samples: Any = load_dataset('json', data_files=data_path, split='train')
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -69,12 +69,12 @@ class SFTDataset(Dataset):
 
     def __init__(self, jsonl_path: str, tokenizer: Any, max_length: int = 1024):
         super().__init__()
-        self.tokenizer = tokenizer
-        self.max_length = max_length
+        self.tokenizer: Any = tokenizer
+        self.max_length: int = max_length
         features = Features({'conversations': [{'role': Value('string'), 'content': Value('string'), 'reasoning_content': Value('string'), 'tools': Value('string'), 'tool_calls': Value('string')}]})
         # self.samples[index] -> {"conversations": List[Dict[str, Any]]}
         # 其中每个 message 至少含 "role" 与 "content"（还有可选 reasoning_content/tools/tool_calls）
-        self.samples = load_dataset('json', data_files=jsonl_path, split='train', features=features)
+        self.samples: Any = load_dataset('json', data_files=jsonl_path, split='train', features=features)
         # TODO(Assignment 01 · Task B-0): 预计算回答边界的 token 序列
         # 后续 generate_labels 会按这两个序列寻找“assistant 回答起点/终点”。
         # 类型: List[int]（长度不限，通常只有几个 token）
@@ -129,15 +129,15 @@ class SFTDataset(Dataset):
 class DPODataset(Dataset):
     def __init__(self, file_path: str, tokenizer: Any, max_length: int = 4096):
         super().__init__()
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.padding = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
+        self.tokenizer: Any = tokenizer
+        self.max_length: int = max_length
+        self.padding: int = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
         # TODO(Assignment 01 · Task C-0，可选): 预计算 DPO 回答边界
         # 类型与 SFT 的 bos_id/eos_id 相同: List[int]
         self.bos_id: Optional[List[int]] = None
         self.eos_id: Optional[List[int]] = None
         # self.samples[index] -> Dict[str, Any]，包含 "chosen"/"rejected"
-        self.samples = load_dataset('json', data_files=file_path, split='train')
+        self.samples: Any = load_dataset('json', data_files=file_path, split='train')
 
     def __len__(self) -> int:
         return len(self.samples)

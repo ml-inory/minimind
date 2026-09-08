@@ -162,6 +162,7 @@ class Attention(nn.Module):
             # TODO(Assignment 02 · Task E): 实现经典 attention
             # 写出 score 的计算、mask 的位置和 softmax 的对象；
             # 也可以先用数学式推导，再与测试中的标准实现对照
+            # 完成后把结果赋给 output，形状需与 flash 分支一致
             raise NotImplementedError("Assignment 02 · Task E")
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
