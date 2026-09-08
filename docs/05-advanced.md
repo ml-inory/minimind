@@ -55,3 +55,11 @@
 每个算法回答同一个问题：奖励从哪来、策略如何更新、如何防止策略漂移。
 
 论文：[DPO](https://arxiv.org/abs/2305.18290)、[GRPO](https://arxiv.org/abs/2402.03300)、[PPO](https://arxiv.org/abs/1707.06347)
+
+## 6. 参考答案
+
+进阶题的答案偏开放性，提供答题框架而非唯一答案：
+
+```bash
+git show solutions:docs/answers/05-advanced.md
+```

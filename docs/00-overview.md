@@ -59,6 +59,13 @@ rg "TODO" dataset/lm_dataset.py model/model_minimind.py trainer/
 2. 测试失败但你已经尝试推导，确实无法继续；
 3. 完成后做 code review，检查自己的实现与原始实现语义是否一致。
 
+每篇作业文档里的“引导问题”也有参考答案，放在 `solutions` 分支的 `docs/answers/` 目录下。
+代码答案由测试判定；概念题请先写下你的理解，再查看：
+
+```bash
+git show solutions:docs/answers/02-model.md
+```
+
 查看单个文件：
 
 ```bash

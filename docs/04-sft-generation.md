@@ -63,3 +63,9 @@ python3 -m pytest tests/test_sft_smoke.py -v
 1. 如果 `temperature=0`，你的实现会发生什么？应不应该支持？
 2. top-k 和 top-p 同时使用时的执行顺序重要吗？
 3. 生成时为什么只在最后一个位置取 logits，而不是整段都取？
+
+回答完后再对照答案：
+
+```bash
+git show solutions:docs/answers/04-sft-generation.md
+```
