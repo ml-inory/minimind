@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from trainer.trainer_utils import get_lr
