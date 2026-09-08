@@ -12,6 +12,8 @@ from model.model_minimind import (
     MiniMindConfig,
     MiniMindForCausalLM,
     RMSNorm,
+    apply_rotary_pos_emb,
+    precompute_freqs_cis,
     repeat_kv,
 )
 
@@ -64,6 +66,37 @@ class TestFeedForward:
             ACT2FN[config.hidden_act](module.gate_proj(x)) * module.up_proj(x)
         )
         assert torch.allclose(module(x), expected, atol=1e-6)
+
+
+class TestRotaryEmbeddings:
+    def test_precompute_freqs_cis_shape_and_value(self):
+        dim, end, rope_base = 8, 10, 10_000.0
+        cos, sin = precompute_freqs_cis(dim=dim, end=end, rope_base=rope_base)
+        assert cos.shape == (end, dim) and sin.shape == (end, dim)
+
+        half = dim // 2
+        index = torch.arange(0, dim, 2)[:half].float()
+        freqs = 1.0 / (rope_base ** (index / dim))
+        angles = torch.outer(torch.arange(end, dtype=torch.float32), freqs)
+        expected_cos = torch.cat([torch.cos(angles), torch.cos(angles)], dim=-1)
+        expected_sin = torch.cat([torch.sin(angles), torch.sin(angles)], dim=-1)
+        assert torch.allclose(cos, expected_cos, atol=1e-6)
+        assert torch.allclose(sin, expected_sin, atol=1e-6)
+
+    def test_apply_rotary_pos_emb_matches_manual_rotate_half(self):
+        dim, end = 4, 3
+        cos, sin = precompute_freqs_cis(dim=dim, end=end, rope_base=10_000.0)
+        torch.manual_seed(0)
+        q = torch.randn(1, end, 1, dim)
+        k = torch.randn(1, end, 1, dim)
+
+        def rotate_half(x):
+            half = x.shape[-1] // 2
+            return torch.cat((-x[..., half:], x[..., :half]), dim=-1)
+
+        q_embed, k_embed = apply_rotary_pos_emb(q, k, cos, sin)
+        assert torch.allclose(q_embed, q * cos.unsqueeze(1) + rotate_half(q) * sin.unsqueeze(1), atol=1e-6)
+        assert torch.allclose(k_embed, k * cos.unsqueeze(1) + rotate_half(k) * sin.unsqueeze(1), atol=1e-6)
 
 
 class TestAttention:
