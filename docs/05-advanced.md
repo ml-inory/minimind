@@ -1,58 +1,57 @@
 # Assignment 05（可选）：进阶方向
 
-主线作业之外的扩展，按推荐顺序排列。
+主线作业完成后，下面每个方向都可以独立成为一个研究型小项目。
 
 ## 1. LoRA
 
-文件：`model/model_lora.py`、`trainer/train_lora.py`
+文件：`model/model_lora.py`（当前保留完整实现）
 
-全参数微调成本高，LoRA 冻结原权重，只训练两个低秩矩阵：
+练习方式：
 
-```text
-W_new = W + B @ A,   A: (rank, out), B: (out, rank)
-```
+1. 阅读 LoRA 论文，回答：为什么两个低秩矩阵的初始化方式不同？
+2. 不看原实现，在 `model_lora_exercise.py` 中自己写出 `LoRA.forward` 与 `apply_lora`；
+3. 比较你的实现与原始实现，找出你漏掉的工程细节；
+4. 回答：为什么保存 LoRA 时只需要保存低秩矩阵，不需要保存整个模型？
 
-`model/model_lora.py` 当前保留完整实现，作为进阶对照材料。想真正练手时，
-先把它复制为 `model/model_lora_exercise.py`，把
-`LoRA.forward`、`apply_lora`、`save_lora`、`merge_lora` 的函数体删成 TODO，
-参照主线作业的 TODO 风格自己实现，最后与原始文件 diff 检查。
-
-练习时重点回答：
-
-1. 为什么 `A` 高斯初始化、`B` 全 0 初始化？
-2. `apply_lora` 为什么用闭包保留 `original_forward`？
-3. `save_lora` 为什么只保存 `*.lora.*` 参数？
-4. `merge_lora` 为什么能等价替换原 `weight`？
+论文：[Hu et al., LoRA](https://arxiv.org/abs/2106.09685)
 
 ## 2. MoE
 
 文件：`model/model_minimind.py::MOEFeedForward`
 
-`MOEFeedForward` 已保留完整实现，是很好的“对照阅读材料”。观察：
+阅读 Switch Transformer 与 Mixtral 后回答：
 
-- router gate 如何输出 top-k 专家；
-- `norm_topk_prob` 为什么做归一化；
-- 训练时如何用 `load * scores.mean` 计算辅助均衡 loss。
+1. router 为什么需要 top-k 而不是只选最大的专家？
+2. “专家负载不均衡”会导致什么问题？辅助 loss 为什么能缓解？
+3. MoE 的参数量和实际激活参数量为什么不同？
 
-可以把它手工重写一遍并关闭原实现进行 A/B 测试。
+论文：[Switch Transformers](https://arxiv.org/abs/2101.03961)、[Mixtral](https://arxiv.org/abs/2401.04088)
 
-## 3. KV Cache 与增量生成
+## 3. KV Cache
 
-`Attention.forward` 的 `past_key_value` 参数就是 KV cache：已经算过的 key/value 不再重复计算。
-`MiniMindModel.forward` 中 `start_pos` 决定本次 RoPE 从哪个位置开始。
+自己实现一个实验：
 
-建议：在 `generate` 上做实验，比较 `use_cache=True/False` 的时间和输出一致性。
+1. 关闭 cache 逐 token 生成；
+2. 打开 cache 逐 token 生成；
+3. 对比速度与输出是否一致。
 
-## 4. YaRN 长度外推
+思考：cache 里存的是什么？为什么“只生成一个 token”时前向仍然要跑全部层？
 
-`precompute_freqs_cis` 的 `rope_scaling` 分支对应 YaRN。读完论文后，尝试解释 `beta_fast`、`beta_slow`、`factor` 的作用。
+## 4. YaRN
+
+阅读 YaRN 论文后，在 `precompute_freqs_cis` 中解释每个超参数的几何含义：
+
+1. `original_max_position_embeddings`；
+2. `factor`；
+3. `beta_fast` / `beta_slow`；
+4. `attention_factor`。
+
+论文：[Peng et al., YaRN](https://arxiv.org/abs/2309.00071)
 
 ## 5. RLHF / RLAIF
 
-仓库中的 `train_ppo.py`、`train_grpo.py`、`train_dpo.py` 是完整实现。主线作业完成后，可以按 DPO → GRPO → PPO 的顺序阅读：
+阅读顺序建议：DPO → GRPO → PPO。
 
-1. 奖励从哪来；
-2. reference model 为什么 stop-gradient；
-3. KL 惩罚为什么能防止策略漂移。
+每个算法回答同一个问题：奖励从哪来、策略如何更新、如何防止策略漂移。
 
-这部分不设自动测试，属于开放阅读任务。
+论文：[DPO](https://arxiv.org/abs/2305.18290)、[GRPO](https://arxiv.org/abs/2402.03300)、[PPO](https://arxiv.org/abs/1707.06347)

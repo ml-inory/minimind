@@ -1,159 +1,88 @@
 # Assignment 02：实现 MiniMind 网络结构
 
-完成本作业后，你应该能从输入 token 自己推出 hidden states、logits 和 loss。
+## 1. 本阶段目标
 
-## 1. 整体数据流
+从零实现一个可训练的最小 Decoder-Only 语言模型。
+完成后，给定 `input_ids`，模型应能输出 logits，并在提供 labels 时返回 loss。
 
-```text
-input_ids (B, S)
-  → Embedding (B, S, H)
-  → Dropout
-  → [MiniMindBlock] × N
-      → Pre-Norm → Attention（含 RoPE、GQA、causal mask）
-      → residual add
-      → Pre-Norm → FeedForward（SwiGLU）
-      → residual add
-  → final RMSNorm
-  → lm_head → logits (B, S, V)
-  → CrossEntropyLoss（shift 一个 token）
-```
+## 2. 任务总览
 
-变量含义：`B=batch size`，`S=seq len`，`H=hidden_size`，`V=vocab_size`。
+| 编号 | 位置 | 内容 |
+|------|------|------|
+| Task A | `RMSNorm.norm` | 归一化层 |
+| Task B | `precompute_freqs_cis` | RoPE 频率表 |
+| Task C | `precompute_freqs_cis` | 位置相关的 cos/sin |
+| Task D | `apply_rotary_pos_emb` | 旋转位置编码应用 |
+| Task E | `Attention.forward` | 自注意力 |
+| Task F | `FeedForward.forward` | 前馈网络 |
+| Task G | `MiniMindBlock.forward` | Transformer Block |
+| Task H | `MiniMindForCausalLM.forward` | 语言建模 loss |
 
-## 2. 任务 A：`RMSNorm.norm`
+## 3. 引导问题
 
-文件：`model/model_minimind.py`
+请先通过阅读回答这些问题，再开始实现：
 
-RMSNorm 与 LayerNorm 类似，但没有减均值：
+### 关于归一化
 
-```text
-rms(x) = sqrt(mean(x^2, dim=-1) + eps)
-y = weight * (x / rms(x))
-```
+1. LayerNorm 做了什么？RMSNorm 去掉了哪一步？为什么可以去掉？
+2. 归一化应该对哪一个维度做？权重参数的形状是什么？
 
-`norm` 只负责归一化部分（不含 `weight`），`forward` 负责乘 weight。
+### 关于位置编码
 
-为什么需要归一化？Pre-Norm 让每一层输入的方差稳定，深层 Transformer 才能稳定训练。
+3. 原始 self-attention 为什么对位置不敏感？
+4. RoPE 的核心思想是“旋转”而不是“相加”，它旋转的是什么？
+5. 频率推导只给出了 `dim/2` 个角度，而最终张量需要 `dim` 列；结合“旋转半区”的几何意义思考如何补齐。
+6. 频率公式里 `rope_base` 的指数为什么只取偶数维？它和复数旋转有什么关系？
 
-## 3. 任务 B/C：RoPE 频率表 `precompute_freqs_cis`
+### 关于注意力
 
-Transformer 本身不感知 token 顺序，需要把位置信息注入 attention。
-RoPE 的做法是：对 query/key 的相邻维度做旋转，旋转角度随位置线性增加。
+7. Scaled Dot-Product Attention 的 scale 从哪来？不 scale 会怎样？
+8. causal mask 保证什么性质？实现时 mask 应加到 score 的哪些位置？
+9. GQA 和 MHA 的 key/value head 数量关系是什么？`repeat_kv` 为什么要复制？
+10. KV cache 里存的是哪两个张量？增量生成时 RoPE 的位置从哪里开始？
 
-先计算基础频率（Task B）：
+### 关于前馈网络与残差
 
-```text
-freqs[i] = 1 / rope_base^(2i / dim),  i = 0, 1, ..., dim/2-1
-```
+11. SwiGLU 里的“门控”指什么？为什么它比普通 ReLU 更常用？
+12. Pre-Norm 的 residual 连接应该加在哪里？norm 应该放在 residual 之前还是之后？
 
-然后用位置下标做外积：
+### 关于目标函数
 
-```text
-angles[t, i] = t * freqs[i]
-```
+13. “预测下一个 token”具体指什么？logits 和 labels 在时间维上如何对齐？
+14. 为什么要用 `ignore_index=-100`？
 
-Task C 再由 `angles` 生成 `freqs_cos` / `freqs_sin`，形状都是 `(end, dim)`：
+## 4. 参考资料
 
-```text
-cos = cos(angles) 拼接成 dim 维
-sin = sin(angles) 拼接成 dim 维
-```
+见 [论文阅读清单](reading-list.md) 的“阶段 2：模型结构”。
 
-注意：`freqs_cos` 并不是 `cos(angles)` 的原样结果，因为 MiniMind 的 `rotate_half`
-实现把张量切成前后两半，所以 RoPE 频率表需要把每个半段各拼接一次，
-最终列数才是 `dim`。
+建议阅读顺序：
 
-`rope_scaling`（YaRN）对应的插值代码已经给你，不要改动；你只需要补 Task B 的基础频率与 Task C 的 `cos/sin` 输出。读完函数后，分清哪几行是已经给出的工程逻辑。
+1. [The Illustrated Transformer](https://jalammar.github.io/illustrated-transformer/)——建立整体直觉；
+2. RMSNorm 论文——Task A；
+3. RoFormer——Task B/C/D；
+4. Attention Is All You Need——Task E；
+5. GLU Variants Improve Transformer——Task F；
+6. On Layer Normalization in the Transformer Architecture——Task G；
+7. GPT-2——Task H 的语言建模目标。
 
-## 4. 任务 D：`apply_rotary_pos_emb`
-
-`rotate_half(x)` 把张量沿最后一维切成前后两半，交换并取负前半：
-
-```text
-rotate_half([a, b]) = [-b, a]
-```
-
-位置旋转：
-
-```text
-q_embed = q * cos + rotate_half(q) * sin
-k_embed = k * cos + rotate_half(k) * sin
-```
-
-`cos`、`sin` 通过 `unsqueeze(unsqueeze_dim)` 变成可广播形状。
-
-## 5. 任务 E：`Attention.forward`
-
-MiniMind 使用 **GQA（Grouped-Query Attention）**：
-
-```text
-q_heads = 8
-kv_heads = 4
-每个 q head 组共享同一份 key/value head（n_rep = 8/4 = 2）
-```
-
-`repeat_kv` 函数已经给出，用于把 kv head 复制到 q head 数量。
-`Attention.forward` 中已给出投影、reshape、norm、RoPE、past KV 拼接、flash attention 分支，你需要实现的是 **非 flash 的经典 attention 路径**：
-
-1. 计算 scaled scores：
-
-```text
-scores = q @ k^T / sqrt(head_dim)
-形状: (B, n_local_heads, S_q, S_kv)
-```
-
-2. 加 causal mask：`scores[:, :, :, -seq_len:]` 上三角位置设为 `-inf`，使位置 `t` 看不到 `t` 之后的 token；
-3. 可选加 attention mask（`1` 表示可见，`0` 表示不可见），用 `-1e9` 或 `-inf` 屏蔽；
-4. `softmax(dim=-1)` → dropout → 乘 `v`。
-
-为什么 scale 是 `1/sqrt(head_dim)`？防止点积随维度增大而过大、softmax 过早饱和。
-
-## 6. 任务 F：`FeedForward.forward`
-
-MiniMind 使用 SwiGLU：
-
-```text
-FFN(x) = down_proj( SiLU(gate_proj(x)) * up_proj(x) )
-```
-
-`ACT2FN[config.hidden_act]` 已经选好激活函数，三个线性层也已定义。
-
-## 7. 任务 G：`MiniMindBlock.forward`
-
-标准 Pre-Norm + residual：
-
-```text
-residual = x
-x = self_attn( input_layernorm(x) ) + residual
-residual = x
-x = mlp( post_attention_layernorm(x) ) + residual
-```
-
-`self_attn` 返回 `(hidden_states, present_key_value)`，需要正确解包。
-
-## 8. 任务 H：`MiniMindForCausalLM.forward` 的 loss
-
-训练目标是“预测下一个 token”，所以 logits 和 labels 要错开一位：
-
-```text
-pred  = logits[:, :-1]      # 用 t 位置预测 t+1
-target= labels[:, 1:]
-loss  = CrossEntropyLoss(pred, target, ignore_index=-100)
-```
-
-不要忘记把 logits reshape 成 `(num_tokens, vocab_size)`。
-
-## 9. 自测
+## 5. 验收
 
 ```bash
 python3 -m pytest tests/test_model_components.py -v
 ```
 
-测试覆盖：RMSNorm 数值、SwiGLU 数值、causal attention 与标准 SDPA 一致性、最终 logits/loss。
+测试会验证：
 
-## 10. 检查你的理解
+- RMSNorm 的数值结果；
+- RoPE 频率表与旋转结果；
+- FeedForward 的数值结果；
+- Attention 与标准 PyTorch 实现的等价性；
+- 完整模型的 logits 形状和 loss 对齐方式。
 
-- 为什么 `q` 要乘以 `cos` 并加上旋转后的部分？
-- 为什么 attention 需要 causal mask？
-- GQA 相比 MHA 省了多少 KV cache？
-- `-100` 的 label 为什么不会贡献梯度？
+## 6. 完成自检
+
+实现完成后，不看代码回答：
+
+1. 每个张量在进入 attention 前后的形状变化是什么？
+2. causal mask 为什么能让第 i 个位置只看前 i 个位置？
+3. 如果去掉 q/k norm、RoPE、residual 中的任意一个，模型训练会发生什么？
