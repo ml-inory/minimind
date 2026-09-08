@@ -46,13 +46,12 @@ class PretrainDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.samples[index]
-        tokens = self.tokenizer(str(sample['text']), add_special_tokens=False, max_length=self.max_length - 2, truncation=True).input_ids
-        tokens = [self.tokenizer.bos_token_id] + tokens + [self.tokenizer.eos_token_id]
-        input_ids = tokens + [self.tokenizer.pad_token_id] * (self.max_length - len(tokens))
-        input_ids = torch.tensor(input_ids, dtype=torch.long)
-        labels = input_ids.clone()
-        labels[input_ids == self.tokenizer.pad_token_id] = -100
-        return input_ids, labels
+        # TODO(Assignment 01 · Task A): 实现预训练样本构造
+        # 1) tokenize(sample["text"])，保留 max_length-2 个 token
+        # 2) 首尾加 bos/eos，右侧 padding 到 self.max_length
+        # 3) labels 初始为 input_ids 的副本，padding 位置设为 -100
+        # 4) 返回 (input_ids, labels)，均为 torch.long
+        raise NotImplementedError("Assignment 01 · Task A")
 
 
 class SFTDataset(Dataset):
@@ -86,22 +85,11 @@ class SFTDataset(Dataset):
         )
 
     def generate_labels(self, input_ids):
-        labels = [-100] * len(input_ids)
-        i = 0
-        while i < len(input_ids):
-            if input_ids[i:i + len(self.bos_id)] == self.bos_id:
-                start = i + len(self.bos_id)
-                end = start
-                while end < len(input_ids):
-                    if input_ids[end:end + len(self.eos_id)] == self.eos_id:
-                        break
-                    end += 1
-                for j in range(start, min(end + len(self.eos_id), self.max_length)):
-                    labels[j] = input_ids[j]
-                i = end + len(self.eos_id) if end < len(input_ids) else len(input_ids)
-            else:
-                i += 1
-        return labels
+        # TODO(Assignment 01 · Task B): 生成 SFT loss mask
+        # 只有 assistant 回答参与 loss：
+        # 扫描 input_ids，遇到 self.bos_id 标记回答起点，
+        # 到 self.eos_id 为止的 token 保留 label，其余为 -100
+        raise NotImplementedError("Assignment 01 · Task B")
 
     def __getitem__(self, index):
         sample = self.samples[index]
@@ -174,22 +162,9 @@ class DPODataset(Dataset):
         }
 
     def generate_loss_mask(self, input_ids):
-        loss_mask = [0] * len(input_ids)
-        i = 0
-        while i < len(input_ids):
-            if input_ids[i:i + len(self.bos_id)] == self.bos_id:
-                start = i + len(self.bos_id)
-                end = start
-                while end < len(input_ids):
-                    if input_ids[end:end + len(self.eos_id)] == self.eos_id:
-                        break
-                    end += 1
-                for j in range(start, min(end + len(self.eos_id), self.max_length)):
-                    loss_mask[j] = 1
-                i = end + len(self.eos_id) if end < len(input_ids) else len(input_ids)
-            else:
-                i += 1
-        return loss_mask
+        # TODO(Assignment 01 · Task C，可选): 生成 DPO 的 0/1 loss mask
+        # 逻辑与 SFTDataset.generate_labels 相同，只是回答区域记 1，其余记 0
+        raise NotImplementedError("Assignment 01 · Task C")
 
 
 class RLAIFDataset(Dataset):

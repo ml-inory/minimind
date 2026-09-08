@@ -54,13 +54,20 @@ class RMSNorm(torch.nn.Module):
         self.weight = nn.Parameter(torch.ones(dim))
 
     def norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        # TODO(Assignment 02 · Task A): 实现 RMSNorm 归一化
+        # 提示: y = x / sqrt(mean(x^2, dim=-1) + eps)，这里不乘 weight
+        raise NotImplementedError("Assignment 02 · Task A")
 
     def forward(self, x):
         return (self.weight * self.norm(x.float())).type_as(x)
 
 def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float = 1e6, rope_scaling: dict = None):
-    freqs, attn_factor = 1.0 / (rope_base ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim)), 1.0
+    # TODO(Assignment 02 · Task B): 实现 RoPE 基础频率
+    # freqs 应为长度 dim//2 的一维张量: freqs[i] = 1 / rope_base^(2i/dim)
+    freqs = None
+    attn_factor = 1.0
+    if freqs is None:
+        raise NotImplementedError("Assignment 02 · Task B")
     if rope_scaling is not None: # YaRN: f'(i) = f(i)((1-γ) + γ/s), where γ∈[0,1] is linear ramp
         orig_max, factor, beta_fast, beta_slow, attn_factor = (
             rope_scaling.get("original_max_position_embeddings", 2048), rope_scaling.get("factor", 16),
@@ -73,15 +80,15 @@ def precompute_freqs_cis(dim: int, end: int = int(32 * 1024), rope_base: float =
             freqs = freqs * (1 - ramp + ramp / factor)
     t = torch.arange(end, device=freqs.device)
     freqs = torch.outer(t, freqs).float()
-    freqs_cos = torch.cat([torch.cos(freqs), torch.cos(freqs)], dim=-1) * attn_factor
-    freqs_sin = torch.cat([torch.sin(freqs), torch.sin(freqs)], dim=-1) * attn_factor
-    return freqs_cos, freqs_sin
+    # TODO(Assignment 02 · Task C): 由 freqs 计算 cos/sin 并返回
+    # 形状要求: (end, dim)；freqs_cos 与 freqs_sin 需要各拼接一份
+    raise NotImplementedError("Assignment 02 · Task C")
 
 def apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1):
-    def rotate_half(x): return torch.cat((-x[..., x.shape[-1] // 2:], x[..., : x.shape[-1] // 2]), dim=-1)
-    q_embed = ((q * cos.unsqueeze(unsqueeze_dim)) + (rotate_half(q) * sin.unsqueeze(unsqueeze_dim))).to(q.dtype)
-    k_embed = ((k * cos.unsqueeze(unsqueeze_dim)) + (rotate_half(k) * sin.unsqueeze(unsqueeze_dim))).to(k.dtype)
-    return q_embed, k_embed
+    # TODO(Assignment 02 · Task D): 实现旋转位置编码
+    # rotate_half(x) = cat([-x[后半], x[前半]], dim=-1)
+    # q_embed = q * cos + rotate_half(q) * sin（cos/sin 需 unsqueeze 后广播）
+    raise NotImplementedError("Assignment 02 · Task D")
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
     bs, slen, num_key_value_heads, head_dim = x.shape
@@ -125,10 +132,12 @@ class Attention(nn.Module):
         if self.flash and (seq_len > 1) and (not self.is_causal or past_key_value is None) and (attention_mask is None or torch.all(attention_mask == 1)):
             output = F.scaled_dot_product_attention(xq, xk, xv, dropout_p=self.dropout if self.training else 0.0, is_causal=self.is_causal)
         else:
-            scores = (xq @ xk.transpose(-2, -1)) / math.sqrt(self.head_dim)
-            if self.is_causal: scores[:, :, :, -seq_len:] += torch.full((seq_len, seq_len), float("-inf"), device=scores.device).triu(1)
-            if attention_mask is not None: scores += (1.0 - attention_mask.unsqueeze(1).unsqueeze(2)) * -1e9
-            output = self.attn_dropout(F.softmax(scores.float(), dim=-1).type_as(xq)) @ xv
+            # TODO(Assignment 02 · Task E): 实现经典 attention
+            # 1) scores = (q @ k^T) / sqrt(head_dim)
+            # 2) causal mask：把当前序列上三角设为 -inf
+            # 3) attention_mask 为 0 的位置用 -1e9 屏蔽
+            # 4) softmax(dim=-1) → attn_dropout → @ v
+            raise NotImplementedError("Assignment 02 · Task E")
         output = output.transpose(1, 2).reshape(bsz, seq_len, -1)
         output = self.resid_dropout(self.o_proj(output))
         return output, past_kv
@@ -143,7 +152,9 @@ class FeedForward(nn.Module):
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x):
-        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+        # TODO(Assignment 02 · Task F): 实现 SwiGLU 前馈网络
+        # FFN(x) = down_proj( act(gate_proj(x)) * up_proj(x) )
+        raise NotImplementedError("Assignment 02 · Task F")
 
 class MOEFeedForward(nn.Module):
     def __init__(self, config: MiniMindConfig):
@@ -184,14 +195,9 @@ class MiniMindBlock(nn.Module):
         self.mlp = FeedForward(config) if not config.use_moe else MOEFeedForward(config)
 
     def forward(self, hidden_states, position_embeddings, past_key_value=None, use_cache=False, attention_mask=None):
-        residual = hidden_states
-        hidden_states, present_key_value = self.self_attn(
-            self.input_layernorm(hidden_states), position_embeddings,
-            past_key_value, use_cache, attention_mask
-        )
-        hidden_states += residual
-        hidden_states = hidden_states + self.mlp(self.post_attention_layernorm(hidden_states))
-        return hidden_states, present_key_value
+        # TODO(Assignment 02 · Task G): 实现 Pre-Norm + residual 的 Decoder Block
+        # 注意 self_attn 返回 (hidden_states, present_key_value)
+        raise NotImplementedError("Assignment 02 · Task G")
 
 class MiniMindModel(nn.Module):
     def __init__(self, config: MiniMindConfig):
@@ -248,8 +254,9 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
         logits = self.lm_head(hidden_states[:, slice_indices, :])
         loss = None
         if labels is not None:
-            x, y = logits[..., :-1, :].contiguous(), labels[..., 1:].contiguous()
-            loss = F.cross_entropy(x.view(-1, x.size(-1)), y.view(-1), ignore_index=-100)
+            # TODO(Assignment 02 · Task H): 计算下一个 token 的交叉熵
+            # logits 与 labels 错开一位，ignore_index=-100 跳过 padding/问题部分
+            raise NotImplementedError("Assignment 02 · Task H")
         return MoeCausalLMOutputWithPast(loss=loss, aux_loss=aux_loss, logits=logits, past_key_values=past_key_values, hidden_states=hidden_states)
     
     # https://github.com/jingyaogong/minimind/discussions/611
@@ -264,18 +271,11 @@ class MiniMindForCausalLM(PreTrainedModel, GenerationMixin):
             past_len = past_key_values[0][0].shape[1] if past_key_values else 0
             outputs = self.forward(input_ids[:, past_len:], attention_mask, past_key_values, use_cache=use_cache, **kwargs)
             attention_mask = torch.cat([attention_mask, attention_mask.new_ones(attention_mask.shape[0], 1)], -1) if attention_mask is not None else None
-            logits = outputs.logits[:, -1, :] / temperature
-            if repetition_penalty != 1.0:
-                for i in range(input_ids.shape[0]):
-                    seen = torch.unique(input_ids[i]); score = logits[i, seen]; logits[i, seen] = torch.where(score > 0, score / repetition_penalty, score * repetition_penalty)
-            if top_k > 0: 
-                logits[logits < torch.topk(logits, top_k)[0][..., -1, None]] = -float('inf')
-            if top_p < 1.0:
-                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                mask = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1) > top_p
-                mask[..., 1:], mask[..., 0] = mask[..., :-1].clone(), 0
-                logits[mask.scatter(1, sorted_indices, mask)] = -float('inf')
-            next_token = torch.multinomial(torch.softmax(logits, dim=-1), num_samples=1) if do_sample else torch.argmax(logits, dim=-1, keepdim=True)
+            # TODO(Assignment 04 · Task B): 实现采样阶段
+            # 输入: outputs.logits[:, -1, :]，形状 (B, vocab_size)
+            # 步骤: temperature → repetition penalty → top-k → top-p → softmax 采样或 argmax
+            # 产出: next_token，形状 (B, 1)
+            raise NotImplementedError("Assignment 04 · Task B")
             if eos_token_id is not None: next_token = torch.where(finished.unsqueeze(-1), next_token.new_full((next_token.shape[0], 1), eos_token_id), next_token)
             input_ids = torch.cat([input_ids, next_token], dim=-1)
             past_key_values = outputs.past_key_values if use_cache else None

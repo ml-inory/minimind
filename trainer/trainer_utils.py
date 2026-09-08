@@ -38,7 +38,12 @@ def Logger(content):
 
 
 def get_lr(current_step, total_steps, lr):
-    return lr*(0.1 + 0.45*(1 + math.cos(math.pi * current_step / total_steps)))
+    # TODO(Assignment 03 · Task A): 实现 cosine 衰减学习率
+    # 参考公式:
+    #   lr_min = 0.1 * lr
+    #   progress = current_step / total_steps
+    #   return lr_min + 0.5 * (lr - lr_min) * (1 + cos(pi * progress))
+    raise NotImplementedError("Assignment 03 · Task A")
 
 
 def init_distributed_mode():

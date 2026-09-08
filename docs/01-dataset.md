@@ -127,3 +127,6 @@ python3 -m pytest tests/test_dataset.py -v
 ```
 
 全部通过后，你已经能回答：一个 token 序列的“正确答案”到底是什么。
+
+> 提示：`DPODataset.generate_loss_mask` 是同一套扫描逻辑的 0/1 变体（Assignment 01 · Task C，可选），
+> 做 DPO 前再回来补即可。

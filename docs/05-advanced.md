@@ -12,12 +12,17 @@
 W_new = W + B @ A,   A: (rank, out), B: (out, rank)
 ```
 
-建议练习：
+`model/model_lora.py` 当前保留完整实现，作为进阶对照材料。想真正练手时，
+先把它复制为 `model/model_lora_exercise.py`，把
+`LoRA.forward`、`apply_lora`、`save_lora`、`merge_lora` 的函数体删成 TODO，
+参照主线作业的 TODO 风格自己实现，最后与原始文件 diff 检查。
 
-1. 自己实现 `LoRA.forward`；
-2. 解释 `apply_lora` 为什么用闭包保留 `original_forward`；
-3. 理解 `save_lora` 为什么只保存 `*.lora.*` 参数；
-4. 写一个 `merge_lora`：把 `B @ A` 合并回原 `weight`。
+练习时重点回答：
+
+1. 为什么 `A` 高斯初始化、`B` 全 0 初始化？
+2. `apply_lora` 为什么用闭包保留 `original_forward`？
+3. `save_lora` 为什么只保存 `*.lora.*` 参数？
+4. `merge_lora` 为什么能等价替换原 `weight`？
 
 ## 2. MoE
 

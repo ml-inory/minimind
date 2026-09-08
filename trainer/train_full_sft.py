@@ -28,25 +28,10 @@ def train_epoch(epoch, loader, iters, start_step=0, wandb=None):
         input_ids = input_ids.to(args.device)
         labels = labels.to(args.device)
         last_step = step
-        lr = get_lr(epoch * iters + step, args.epochs * iters, args.learning_rate)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-        with autocast_ctx:
-            res = model(input_ids, labels=labels)
-            loss = res.loss + res.aux_loss
-            loss = loss / args.accumulation_steps
-
-        scaler.scale(loss).backward()
-
-        if step % args.accumulation_steps == 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-
-            scaler.step(optimizer)
-            scaler.update()
-
-            optimizer.zero_grad(set_to_none=True)
+        # TODO(Assignment 04 · Task A): 实现 SFT 训练 step
+        # 逻辑与 Assignment 03 的预训练 step 相同，不要复制粘贴，独立完成
+        # 注意 SFTDataset 的 labels 已把问题部分设为 -100
+        raise NotImplementedError("Assignment 04 · Task A")
 
         if step % args.log_interval == 0 or step == iters:
             spend_time = time.time() - start_time
