@@ -1,4 +1,3 @@
-import math
 from pathlib import Path
 
 import pytest
@@ -158,7 +157,7 @@ class TestCausalLM:
         )
         assert torch.allclose(output.loss, expected, atol=1e-6)
 
-    def test_loss_is_finite_and_small_for_cheating_forward(self, model):
+    def test_loss_is_finite_with_labels(self, model):
         torch.manual_seed(3)
         input_ids = torch.randint(0, 64, (1, 9))
         labels = input_ids.clone()
